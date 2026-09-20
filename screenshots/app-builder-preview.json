@@ -1,0 +1,36 @@
+{
+  "url": "http://127.0.0.1:8080/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "Valentina y el Establo de Pepola",
+      "hasCanvas": true,
+      "bodyTextLen": 218,
+      "bodyTextHash": "e08dacc52e5b628f4140b6d97c7e0168bbd4b69155eec2b43b61a2a2078a87b0",
+      "bodyTextPrefix": "VALLE DEL ESTABLO Valentina y el establo de Pepola Recorre el va",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "Valentina y el Establo de Pepola",
+      "hasCanvas": true,
+      "bodyTextLen": 218,
+      "bodyTextHash": "e08dacc52e5b628f4140b6d97c7e0168bbd4b69155eec2b43b61a2a2078a87b0",
+      "bodyTextPrefix": "VALLE DEL ESTABLO Valentina y el establo de Pepola Recorre el va",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-preview.json"
+}
