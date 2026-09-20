@@ -54,6 +54,11 @@ function MeshStd({
   );
 }
 
+/** Yaw-only orientation: characters stay upright (no pitch/roll from lookAt). */
+function setYaw(g: THREE.Group, yaw: number) {
+  g.rotation.set(0, -yaw, 0);
+}
+
 export function HorseMesh({ def }: { def: HorseDef }) {
   const root = useRef<THREE.Group>(null);
   const lf = useRef<THREE.Group>(null);
@@ -61,7 +66,6 @@ export function HorseMesh({ def }: { def: HorseDef }) {
   const lb = useRef<THREE.Group>(null);
   const rb = useRef<THREE.Group>(null);
   const neck = useRef<THREE.Group>(null);
-  const look = useMemo(() => new THREE.Vector3(), []);
 
   useFrame(() => {
     const horse = sim.horses.find((h) => h.id === def.id);
@@ -69,8 +73,7 @@ export function HorseMesh({ def }: { def: HorseDef }) {
     if (!g || !horse) return;
     const y = heightAt(horse.x, horse.z);
     g.position.set(horse.x, y, horse.z);
-    look.set(horse.x - Math.sin(horse.yaw), y + 1, horse.z - Math.cos(horse.yaw));
-    g.lookAt(look);
+    setYaw(g, horse.yaw);
     const swing = Math.sin(horse.walkPhase) * 0.42 * Math.min(1, horse.speed / 2);
     if (lf.current) lf.current.rotation.x = swing;
     if (rb.current) rb.current.rotation.x = swing;
@@ -157,7 +160,6 @@ export function ValentinaMesh() {
   const rl = useRef<THREE.Group>(null);
   const la = useRef<THREE.Group>(null);
   const ra = useRef<THREE.Group>(null);
-  const look = useMemo(() => new THREE.Vector3(), []);
 
   useFrame(() => {
     const p = sim.player;
@@ -165,8 +167,7 @@ export function ValentinaMesh() {
     if (!g) return;
     const y = heightAt(p.x, p.z);
     g.position.set(p.x, y, p.z);
-    look.set(p.x - Math.sin(p.yaw), y + 1.1, p.z - Math.cos(p.yaw));
-    g.lookAt(look);
+    setYaw(g, p.yaw);
     const swing = Math.sin(p.walkPhase) * 0.55 * Math.min(1, Math.abs(p.speed) / 3);
     if (ll.current) ll.current.rotation.x = swing;
     if (rl.current) rl.current.rotation.x = -swing;
@@ -214,7 +215,6 @@ export function ValentinaMesh() {
 
 export function PepolaMesh() {
   const root = useRef<THREE.Group>(null);
-  const look = useMemo(() => new THREE.Vector3(), []);
   const pos = { x: 2.6, z: 5.4 };
 
   useFrame(() => {
@@ -223,8 +223,10 @@ export function PepolaMesh() {
     const y = heightAt(pos.x, pos.z);
     g.position.set(pos.x, y, pos.z);
     const t = sim.player;
-    look.set(t.x, y + 1.2, t.z);
-    g.lookAt(look);
+    const dx = t.x - pos.x;
+    const dz = t.z - pos.z;
+    // Face player on the horizontal plane only (upright).
+    setYaw(g, Math.atan2(-dx, -dz));
     g.position.y = y + Math.sin(sim.time * 1.5) * 0.02;
   });
 
