@@ -21,6 +21,8 @@ const geo = {
   box: new THREE.BoxGeometry(1, 1, 1),
 };
 
+const _up = new THREE.Vector3(0, 1, 0);
+
 function MeshStd({
   geometry,
   color,
@@ -54,9 +56,13 @@ function MeshStd({
   );
 }
 
-/** Yaw-only orientation: characters stay upright (no pitch/roll from lookAt). */
-function setYaw(g: THREE.Group, yaw: number) {
-  g.rotation.set(0, -yaw, 0);
+/**
+ * Pure yaw on world up. Models face +Z; sim forward is (-sin(yaw), -cos(yaw)),
+ * so we add PI so the head points the way they walk.
+ */
+function orientUpright(g: THREE.Object3D, yaw: number) {
+  g.rotation.set(0, 0, 0);
+  g.quaternion.setFromAxisAngle(_up, yaw + Math.PI);
 }
 
 export function HorseMesh({ def }: { def: HorseDef }) {
@@ -73,7 +79,7 @@ export function HorseMesh({ def }: { def: HorseDef }) {
     if (!g || !horse) return;
     const y = heightAt(horse.x, horse.z);
     g.position.set(horse.x, y, horse.z);
-    setYaw(g, horse.yaw);
+    orientUpright(g, horse.yaw);
     const swing = Math.sin(horse.walkPhase) * 0.42 * Math.min(1, horse.speed / 2);
     if (lf.current) lf.current.rotation.x = swing;
     if (rb.current) rb.current.rotation.x = swing;
@@ -92,6 +98,7 @@ export function HorseMesh({ def }: { def: HorseDef }) {
 
   return (
     <group ref={root} scale={s}>
+      {/* Body sits upright on Y; long axis along local Z (head +Z). */}
       <MeshStd geometry={geo.sphereHi} color={coat} position={[0, 1.08, 0]} scale={[0.42, 0.5, 0.78]} />
       <MeshStd geometry={geo.sphere} color={coat} position={[0, 1.02, 0.52]} scale={[0.4, 0.46, 0.38]} />
       <MeshStd geometry={geo.sphere} color={coat} position={[0, 1.1, -0.52]} scale={[0.44, 0.5, 0.42]} />
@@ -167,7 +174,7 @@ export function ValentinaMesh() {
     if (!g) return;
     const y = heightAt(p.x, p.z);
     g.position.set(p.x, y, p.z);
-    setYaw(g, p.yaw);
+    orientUpright(g, p.yaw);
     const swing = Math.sin(p.walkPhase) * 0.55 * Math.min(1, Math.abs(p.speed) / 3);
     if (ll.current) ll.current.rotation.x = swing;
     if (rl.current) rl.current.rotation.x = -swing;
@@ -225,8 +232,7 @@ export function PepolaMesh() {
     const t = sim.player;
     const dx = t.x - pos.x;
     const dz = t.z - pos.z;
-    // Face player on the horizontal plane only (upright).
-    setYaw(g, Math.atan2(-dx, -dz));
+    orientUpright(g, Math.atan2(-dx, -dz));
     g.position.y = y + Math.sin(sim.time * 1.5) * 0.02;
   });
 
