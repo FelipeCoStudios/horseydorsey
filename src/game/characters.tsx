@@ -186,7 +186,7 @@ export function ValentinaMesh() {
   const hair = "#3a2418";
   const shirt = "#ead9c4";
   const vest = "#a45a40";
-  const pants = "#5c4638"; intr
+  const pants = "#5c4638";
   const boot = "#2a1f18";
 
   return (
