@@ -21,8 +21,6 @@ const geo = {
   box: new THREE.BoxGeometry(1, 1, 1),
 };
 
-const _up = new THREE.Vector3(0, 1, 0);
-
 function MeshStd({
   geometry,
   color,
@@ -57,12 +55,14 @@ function MeshStd({
 }
 
 /**
- * Pure yaw on world up. Models face +Z; sim forward is (-sin(yaw), -cos(yaw)),
- * so we add PI so the head points the way they walk.
+ * Force pure yaw only. Zero pitch/roll every frame so characters stay upright.
+ * Models face +Z; sim forward is (-sin(yaw), -cos(yaw)) → add PI.
  */
 function orientUpright(g: THREE.Object3D, yaw: number) {
-  g.rotation.set(0, 0, 0);
-  g.quaternion.setFromAxisAngle(_up, yaw + Math.PI);
+  g.rotation.order = "YXZ";
+  g.rotation.set(0, yaw + Math.PI, 0);
+  g.quaternion.setFromEuler(g.rotation);
+  g.updateMatrix();
 }
 
 export function HorseMesh({ def }: { def: HorseDef }) {
@@ -186,7 +186,7 @@ export function ValentinaMesh() {
   const hair = "#3a2418";
   const shirt = "#ead9c4";
   const vest = "#a45a40";
-  const pants = "#5c4638";
+  const pants = "#5c4638"; intr
   const boot = "#2a1f18";
 
   return (
