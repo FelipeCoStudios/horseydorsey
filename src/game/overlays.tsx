@@ -1,16 +1,8 @@
 import { useCallback, useRef } from "react";
-import {
-  Apple,
-  BookOpen,
-  Brush,
-  Heart,
-  Home,
-  Pause,
-  Play,
-} from "lucide-react";
+import { Apple, BookOpen, Brush, Heart, Home, Pause, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { care, newGame, startGame } from "./sim";
+import { care, exitRace, newGame, startGame } from "./sim";
 import { setPhase, useGame, type HorseCard } from "./store";
 import { queueInteract, queueJournal, setTouchAxes } from "./input";
 import { unlockAudio } from "./audio";
@@ -21,16 +13,16 @@ function StatRow({ label, value }: { label: string; value: number }) {
       <span className="text-xs font-medium uppercase tracking-wide text-muted">{label}</span>
       <div className="flex gap-1" aria-label={`${label} ${value} de 5`}>
         {Array.from({ length: 5 }, (_, i) => (
-          <span
-            key={i}
-            className={cn(
-              "h-1.5 w-4 rounded-full",
-              i < value ? "bg-primary" : "bg-line",
-            )}
-          />
+          <span key={i} className={cn("h-1.5 w-4 rounded-full", i < value ? "bg-primary" : "bg-line")} />
         ))}
       </div>
     </div>
+  );
+}
+
+function Hint({ children }: { children: string }) {
+  return (
+    <span className="rounded-full border border-line bg-raised/80 px-3 py-1 text-xs text-muted">{children}</span>
   );
 }
 
@@ -38,16 +30,17 @@ export function StartScreen() {
   const phase = useGame((s) => s.phase);
   if (phase !== "title") return null;
   return (
-    <div className="pointer-events-auto absolute inset-0 flex flex-col justify-end bg-bg/55 px-5 pb-[max(2rem,env(safe-area-inset-bottom))] pt-[max(2rem,env(safe-area-inset-top))] sm:justify-center sm:px-10">
-      <div className="mx-auto w-full max-w-lg animate-[rise_var(--motion-slow)_var(--ease-smooth-out)]">
+    <div className="pointer-events-auto absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-bg via-bg/75 to-transparent px-5 pb-[max(1.75rem,env(safe-area-inset-bottom))] pt-[max(2rem,env(safe-area-inset-top))] sm:justify-end sm:px-10">
+      <div className="mx-auto w-full max-w-lg animate-[rise_var(--motion-slow)_var(--ease-smooth-out)] rounded-xl border border-line bg-bg/82 p-6 sm:mx-0 sm:p-8">
         <p className="text-xs font-medium uppercase tracking-[0.28em] text-primary">Valle del establo</p>
         <h1 className="mt-3 font-display text-4xl leading-[1.05] text-fg text-balance sm:text-5xl">
           Valentina y el establo de Pepola
         </h1>
         <p className="mt-4 max-w-md text-pretty text-sm leading-relaxed text-muted sm:text-base">
-          Recorre el valle, descubre cada caballo y cuídalo. Cuando esté feliz, regístralo en el establo de tu hermano Pepola.
+          Recorre el valle, descubre cada caballo y cuídalo. Cuando esté feliz, regístralo en el establo de tu
+          hermano Pepola.
         </p>
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="mt-7 flex flex-col gap-4 sm:flex-row sm:items-center">
           <Button
             size="xl"
             className="w-full sm:w-auto"
@@ -59,9 +52,11 @@ export function StartScreen() {
             <Play className="size-4" />
             Jugar
           </Button>
-          <p className="text-xs text-subtle sm:ml-2">
-            WASD para caminar · E para cuidar · J diario
-          </p>
+          <div className="flex flex-wrap gap-2">
+            <Hint>WASD caminar</Hint>
+            <Hint>E cuidar</Hint>
+            <Hint>J diario</Hint>
+          </div>
         </div>
       </div>
     </div>
@@ -75,12 +70,13 @@ export function Hud() {
   const total = useGame((s) => s.total);
   const prompt = useGame((s) => s.prompt);
   const toast = useGame((s) => s.toast);
+  const careId = useGame((s) => s.careId);
   if (phase === "title") return null;
 
   return (
     <>
       <div className="pointer-events-none absolute left-4 top-[max(1rem,env(safe-area-inset-top))] right-4 flex items-start justify-between gap-3">
-        <div className="pointer-events-auto rounded-[20px] border border-line bg-bg/80 px-4 py-3">
+        <div className="pointer-events-auto rounded-xl border border-line bg-bg/82 px-4 py-3">
           <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-subtle">Establo de Pepola</p>
           <p className="mt-1 font-display text-xl tabular-nums text-fg">
             {registered}
@@ -92,7 +88,7 @@ export function Hud() {
           <Button
             variant="secondary"
             size="icon"
-            className="pointer-events-auto size-12 bg-bg/80"
+            className="pointer-events-auto size-12 bg-bg/82"
             aria-label="Diario del establo"
             onClick={() => setPhase(phase === "journal" ? "playing" : "journal")}
           >
@@ -101,7 +97,7 @@ export function Hud() {
           <Button
             variant="secondary"
             size="icon"
-            className="pointer-events-auto size-12 bg-bg/80"
+            className="pointer-events-auto size-12 bg-bg/82"
             aria-label={phase === "paused" ? "Reanudar" : "Pausa"}
             onClick={() => setPhase(phase === "paused" ? "playing" : "paused")}
           >
@@ -110,19 +106,15 @@ export function Hud() {
         </div>
       </div>
 
-      {prompt && phase === "playing" ? (
+      {prompt && phase === "playing" && !careId ? (
         <div className="pointer-events-none absolute bottom-[7.5rem] left-1/2 z-10 w-[min(92vw,28rem)] -translate-x-1/2 sm:bottom-10">
-          <div className="rounded-[18px] border border-line bg-bg/82 px-4 py-2.5 text-center text-sm text-fg">
-            {prompt}
-          </div>
+          <div className="rounded-lg border border-line bg-bg/86 px-4 py-2.5 text-center text-sm text-fg">{prompt}</div>
         </div>
       ) : null}
 
       {toast ? (
         <div className="pointer-events-none absolute left-1/2 top-28 z-20 w-[min(92vw,26rem)] -translate-x-1/2">
-          <div className="rounded-[16px] border border-line bg-raised px-4 py-3 text-center text-sm text-fg">
-            {toast}
-          </div>
+          <div className="rounded-lg border border-line bg-raised px-4 py-3 text-center text-sm text-fg">{toast}</div>
         </div>
       ) : null}
     </>
@@ -140,7 +132,7 @@ function CareActions() {
 
   return (
     <div className="pointer-events-auto absolute bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-20 w-[min(96vw,28rem)] -translate-x-1/2">
-      <div className="rounded-[28px] border border-line bg-bg/92 p-4">
+      <div className="rounded-xl border border-line bg-bg p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="font-display text-2xl text-fg">{card.def.name}</p>
@@ -196,16 +188,9 @@ function CareActions() {
 
 function HorseJournalCard({ card }: { card: HorseCard }) {
   return (
-    <article
-      className={cn(
-        "rounded-[20px] border border-line bg-raised p-4",
-        !card.discovered && "opacity-70",
-      )}
-    >
+    <article className={cn("rounded-xl border border-line bg-raised p-4", !card.discovered && "opacity-70")}>
       <div className="flex items-baseline justify-between gap-2">
-        <h3 className="font-display text-lg text-fg">
-          {card.discovered ? card.def.name : "Sin descubrir"}
-        </h3>
+        <h3 className="font-display text-lg text-fg">{card.discovered ? card.def.name : "Sin descubrir"}</h3>
         {card.registered ? (
           <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[11px] font-medium text-primary">
             En el establo
@@ -264,7 +249,7 @@ export function PauseMenu() {
   if (phase !== "paused") return null;
   return (
     <div className="pointer-events-auto absolute inset-0 z-30 flex items-center justify-center bg-bg/70 px-5">
-      <div className="w-full max-w-sm rounded-[28px] border border-line bg-surface p-6">
+      <div className="w-full max-w-sm rounded-xl border border-line bg-surface p-6">
         <h2 className="font-display text-3xl text-fg">Pausa</h2>
         <p className="mt-2 text-sm text-muted">El valle te espera cuando vuelvas.</p>
         <div className="mt-6 flex flex-col gap-2">
@@ -288,7 +273,7 @@ export function WinScreen() {
   if (phase !== "win") return null;
   return (
     <div className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-bg/75 px-5">
-      <div className="w-full max-w-md rounded-[28px] border border-line bg-surface p-6 text-center">
+      <div className="w-full max-w-md rounded-xl border border-line bg-surface p-6 text-center">
         <Home className="mx-auto size-8 text-primary" />
         <h2 className="mt-3 font-display text-3xl text-fg text-balance">El establo está completo</h2>
         <p className="mt-3 text-pretty text-sm leading-relaxed text-muted">
@@ -300,6 +285,13 @@ export function WinScreen() {
       </div>
     </div>
   );
+}
+
+
+export function RaceOverlay() {
+  const phase=useGame(s=>s.phase), time=useGame(s=>s.raceTime), best=useGame(s=>s.raceBest), cp=useGame(s=>s.raceCheckpoint), cd=useGame(s=>s.raceCountdown);
+  if(phase!=="race") return null; const finished=cp>=6;
+  return <div className="pointer-events-none absolute inset-0 z-30"><div className="absolute left-1/2 top-4 -translate-x-1/2 rounded-xl border border-line bg-bg/88 px-5 py-3 text-center"><p className="text-[10px] uppercase tracking-[.22em] text-primary">Hipismo cronometrado</p><p className="font-display text-3xl tabular-nums text-fg">{time.toFixed(2)} s</p><p className="text-xs text-muted">Checkpoint {Math.min(cp,5)} / 5</p></div>{cd>0?<div className="absolute inset-0 flex items-center justify-center"><div className="rounded-2xl border border-line bg-bg/90 px-10 py-7 text-center"><p className="font-display text-6xl text-fg">{Math.ceil(cd)}</p><p className="mt-2 text-sm text-muted">¡Prepárate!</p></div></div>:null}{finished?<div className="pointer-events-auto absolute inset-x-4 bottom-8 mx-auto max-w-sm rounded-xl border border-line bg-surface p-5 text-center"><p className="text-xs uppercase tracking-[.2em] text-primary">Meta</p><h2 className="mt-1 font-display text-3xl text-fg">¡Carrera terminada!</h2><p className="mt-2 text-sm text-muted">Tiempo: <strong>{time.toFixed(2)} s</strong></p>{best!=null?<p className="text-xs text-subtle">Mejor tiempo: {best.toFixed(2)} s</p>:null}<div className="mt-4"><Button variant="secondary" className="pointer-events-auto w-full" onClick={exitRace}>Volver al valle</Button></div></div>:<div className="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-full border border-line bg-bg/80 px-4 py-2 text-xs text-muted">W acelera · A/D gira · Esc salir</div>}</div>;
 }
 
 export function TouchControls() {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { GameCanvas } from "./Scene";
-import { CarePanel, Hud, Journal, PauseMenu, StartScreen, TouchControls, WinScreen } from "./overlays";
+import { CarePanel, Hud, Journal, PauseMenu, StartScreen, TouchControls, WinScreen, RaceOverlay } from "./overlays";
 import { attachInput, detachInput } from "./input";
 import { installControlsProbe, resetSim } from "./sim";
 
@@ -32,6 +32,7 @@ export function GameApp() {
         <Journal />
         <PauseMenu />
         <WinScreen />
+        <RaceOverlay />
       </div>
     </main>
   );

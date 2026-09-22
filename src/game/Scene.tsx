@@ -3,7 +3,17 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { HORSES } from "./data";
 import { HorseMesh, PepolaMesh, ValentinaMesh } from "./characters";
-import { Barn, PaddockFence, Pond, RocksAndBushes, Terrain, Trees } from "./scenery";
+import {
+  Barn,
+  Clouds,
+  GrassTufts,
+  PaddockFence,
+  Pond,
+  RocksAndBushes,
+  SkyDome,
+  Terrain,
+  Trees,
+} from "./scenery";
 import { installControlsProbe, sim, tick } from "./sim";
 import { useGame } from "./store";
 import { heightAt } from "./world";
@@ -20,8 +30,8 @@ function CameraRig() {
     const dt = Math.min(delta, 0.1);
     if (phase === "title") {
       const t = sim.time * 0.12;
-      camera.position.set(Math.sin(t) * 20, 8.4, Math.cos(t) * 20);
-      camera.lookAt(0, 1.4, 0);
+      camera.position.set(Math.sin(t) * 22, 8.8, Math.cos(t) * 22);
+      camera.lookAt(0, 1.8, 0);
       return;
     }
     const p = sim.player;
@@ -105,11 +115,11 @@ function Particles() {
 function Lights() {
   return (
     <>
-      <hemisphereLight args={["#d7e2ee", "#6d5a44", 0.72]} />
+      <hemisphereLight args={["#dce6f0", "#6d5a44", 0.78]} />
       <directionalLight
         castShadow
         position={[26, 34, 16]}
-        intensity={1.45}
+        intensity={1.55}
         color="#fff3dc"
         shadow-mapSize={[1024, 1024]}
         shadow-camera-near={2}
@@ -120,9 +130,18 @@ function Lights() {
         shadow-camera-bottom={-38}
         shadow-bias={-0.0004}
       />
-      <ambientLight intensity={0.18} color="#c9c0b0" />
+      <ambientLight intensity={0.2} color="#c9c0b0" />
     </>
   );
+}
+
+
+function RaceCourse() {
+  const phase = useGame((s) => s.phase); const checkpoint = useGame((s) => s.raceCheckpoint);
+  if (phase !== "race") return null;
+  const points = [[0,16],[16,16],[16,-16],[-16,-16],[-16,16],[0,16]] as const;
+  const hurdles = [{x:8,z:16,yaw:0},{x:16,z:-4,yaw:Math.PI/2},{x:-4,z:-16,yaw:0}];
+  return <group>{points.slice(1).map(([x,z],i)=><mesh key={i} position={[x,heightAt(x,z)+.08,z]} rotation={[-Math.PI/2,0,0]}><ringGeometry args={[i+1===checkpoint?2.7:2.2,i+1===checkpoint?3.05:2.45,24]}/><meshBasicMaterial transparent opacity={i+1===checkpoint?.8:.22} color={i+1===checkpoint?"#d7b56d":"#ffffff"}/></mesh>)}{hurdles.map((h,i)=><group key={i} position={[h.x,heightAt(h.x,h.z)+.65,h.z]} rotation={[0,h.yaw,0]}><mesh><boxGeometry args={[2.8,.14,.12]}/><meshStandardMaterial color="#f0e3c7"/></mesh><mesh position={[-1.2,-.35,0]}><boxGeometry args={[.12,.7,.12]}/><meshStandardMaterial color="#6b4c38"/></mesh><mesh position={[1.2,-.35,0]}><boxGeometry args={[.12,.7,.12]}/><meshStandardMaterial color="#6b4c38"/></mesh></group>)}</group>;
 }
 
 export function GameCanvas() {
@@ -131,26 +150,30 @@ export function GameCanvas() {
       className="h-full w-full touch-none"
       shadows
       dpr={[1, 1.75]}
-      camera={{ fov: 48, near: 0.12, far: 140, position: [0, 9, 22] }}
+      camera={{ fov: 48, near: 0.12, far: 160, position: [0, 9, 22] }}
       gl={{ antialias: true, alpha: false, powerPreference: "high-performance" }}
       onCreated={({ gl }) => {
         gl.toneMapping = THREE.ACESFilmicToneMapping;
-        gl.toneMappingExposure = 1.08;
+        gl.toneMappingExposure = 1.12;
         gl.shadowMap.enabled = true;
-        gl.shadowMap.type = THREE.PCFSoftShadowMap;
+        gl.shadowMap.type = THREE.PCFShadowMap;
       }}
     >
-      <color attach="background" args={["#c5d0c4"]} />
-      <fog attach="fog" args={["#c5d0c4", 32, 78]} />
+      <color attach="background" args={["#c9d6e0"]} />
+      <fog attach="fog" args={["#c7d0c6", 36, 92]} />
+      <SkyDome />
+      <Clouds />
       <Lights />
       <Loop />
       <CameraRig />
       <Terrain />
+      <GrassTufts />
       <Pond />
       <Trees />
       <RocksAndBushes />
       <Barn />
       <PaddockFence />
+      <RaceCourse />
       <ValentinaMesh />
       <PepolaMesh />
       <Horses />

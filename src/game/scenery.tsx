@@ -1,6 +1,17 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
+import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { BUSHES, FENCE_POSTS, ROCKS, TREES, WORLD_HALF, heightAt } from "./world";
+import {
+  BUSHES,
+  FENCE_POSTS,
+  FENCE_RAILS,
+  GRASS,
+  ROCKS,
+  TREES,
+  WORLD_HALF,
+  heightAt,
+} from "./world";
+import { sim } from "./sim";
 
 const trunkMat = new THREE.MeshStandardMaterial({ color: "#4a3728", roughness: 0.9, flatShading: true });
 const leafMat = new THREE.MeshStandardMaterial({ color: "#4f7344", roughness: 0.85, flatShading: true });
@@ -11,13 +22,24 @@ const woodMat = new THREE.MeshStandardMaterial({ color: "#6b4a32", roughness: 0.
 const woodDark = new THREE.MeshStandardMaterial({ color: "#4a3122", roughness: 0.88, flatShading: true });
 const roofMat = new THREE.MeshStandardMaterial({ color: "#6e3d32", roughness: 0.8, flatShading: true });
 const hayMat = new THREE.MeshStandardMaterial({ color: "#c6b06a", roughness: 0.9, flatShading: true });
+const grassMat = new THREE.MeshStandardMaterial({ color: "#5d7a42", roughness: 0.9, flatShading: true });
+const cloudMat = new THREE.MeshStandardMaterial({
+  color: "#f3efe6",
+  roughness: 1,
+  flatShading: true,
+  transparent: true,
+  opacity: 0.88,
+});
 const waterMat = new THREE.MeshStandardMaterial({
   color: "#6a8f8a",
   roughness: 0.18,
   metalness: 0.12,
   transparent: true,
-  opacity: 0.72,
+  opacity: 0.78,
 });
+
+const _dir = new THREE.Vector3();
+const _axisX = new THREE.Vector3(1, 0, 0);
 
 export function Terrain() {
   const geometry = useMemo(() => {
@@ -57,30 +79,75 @@ export function Terrain() {
   );
 }
 
+export function SkyDome() {
+  return (
+    <group>
+      <mesh>
+        <sphereGeometry args={[110, 24, 16]} />
+        <meshBasicMaterial color="#c9d6e0" side={THREE.BackSide} />
+      </mesh>
+      <mesh position={[36, 46, 22]}>
+        <sphereGeometry args={[3.4, 12, 12]} />
+        <meshBasicMaterial color="#fff3cc" />
+      </mesh>
+    </group>
+  );
+}
+
+export function Clouds() {
+  const group = useRef<THREE.Group>(null);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+  const geo = useMemo(() => new THREE.SphereGeometry(1, 8, 6), []);
+  const blobs = useMemo(
+    () =>
+      [
+        [12, 18.5, -22, 5.2],
+        [-20, 16.8, 10, 4.1],
+        [30, 20.5, 14, 5.6],
+        [-6, 17.4, -30, 4.4],
+        [8, 19.2, 32, 3.6],
+        [-28, 18, -8, 4.8],
+      ] as const,
+    [],
+  );
+
+  useFrame(() => {
+    if (group.current) group.current.rotation.y = sim.time * 0.012;
+  });
+
+  return (
+    <group ref={group}>
+      <instancedMesh
+        args={[geo, cloudMat, blobs.length]}
+        frustumCulled={false}
+        ref={(mesh) => {
+          if (!mesh) return;
+          blobs.forEach((c, i) => {
+            dummy.position.set(c[0], c[1], c[2]);
+            dummy.scale.set(c[3], c[3] * 0.36, c[3] * 0.72);
+            dummy.updateMatrix();
+            mesh.setMatrixAt(i, dummy.matrix);
+          });
+          mesh.instanceMatrix.needsUpdate = true;
+        }}
+      />
+    </group>
+  );
+}
+
 export function Trees() {
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const trunkGeo = useMemo(() => new THREE.CylinderGeometry(0.18, 0.26, 1.6, 6), []);
   const leafGeo = useMemo(() => new THREE.ConeGeometry(1.1, 2.2, 7), []);
+  const leafHi = useMemo(() => new THREE.ConeGeometry(0.72, 1.5, 7), []);
 
-  const trunkRef = (mesh: THREE.InstancedMesh | null) => {
+  const place = (mesh: THREE.InstancedMesh | null, yOff: number, sMul = 1) => {
     if (!mesh) return;
     TREES.forEach((t, i) => {
       const y = heightAt(t.x, t.z);
-      dummy.position.set(t.x, y + 0.8 * t.s, t.z);
+      dummy.position.set(t.x, y + yOff * t.s, t.z);
       dummy.rotation.set(0, t.rot, 0);
-      dummy.scale.set(t.s, t.s, t.s);
-      dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
-    });
-    mesh.instanceMatrix.needsUpdate = true;
-  };
-  const leafRef = (mesh: THREE.InstancedMesh | null) => {
-    if (!mesh) return;
-    TREES.forEach((t, i) => {
-      const y = heightAt(t.x, t.z);
-      dummy.position.set(t.x, y + 2.15 * t.s, t.z);
-      dummy.rotation.set(0, t.rot, 0);
-      dummy.scale.set(t.s, t.s, t.s);
+      dummy.scale.set(t.s * sMul, t.s, t.s * sMul);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
     });
@@ -89,8 +156,14 @@ export function Trees() {
 
   return (
     <group>
-      <instancedMesh ref={trunkRef} args={[trunkGeo, trunkMat, TREES.length]} castShadow receiveShadow />
-      <instancedMesh ref={leafRef} args={[leafGeo, leafMat, TREES.length]} castShadow />
+      <instancedMesh
+        args={[trunkGeo, trunkMat, TREES.length]}
+        castShadow
+        receiveShadow
+        ref={(m) => place(m, 0.8)}
+      />
+      <instancedMesh args={[leafGeo, leafMat, TREES.length]} castShadow ref={(m) => place(m, 2.15)} />
+      <instancedMesh args={[leafHi, leafMat2, TREES.length]} castShadow ref={(m) => place(m, 3.05, 0.92)} />
     </group>
   );
 }
@@ -151,12 +224,40 @@ export function RocksAndBushes() {
   );
 }
 
-export function Pond() {
+export function GrassTufts() {
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+  const geo = useMemo(() => new THREE.ConeGeometry(0.18, 0.55, 5), []);
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-22, 0.02, 10]} receiveShadow>
-      <circleGeometry args={[5.2, 24]} />
-      <primitive object={waterMat} attach="material" />
-    </mesh>
+    <instancedMesh
+      args={[geo, grassMat, GRASS.length]}
+      ref={(mesh) => {
+        if (!mesh) return;
+        GRASS.forEach((t, i) => {
+          dummy.position.set(t.x, heightAt(t.x, t.z) + 0.22 * t.s, t.z);
+          dummy.rotation.set(0, t.rot, 0);
+          dummy.scale.set(t.s, t.s, t.s);
+          dummy.updateMatrix();
+          mesh.setMatrixAt(i, dummy.matrix);
+        });
+        mesh.instanceMatrix.needsUpdate = true;
+      }}
+    />
+  );
+}
+
+export function Pond() {
+  const y = heightAt(-22, 10) + 0.38;
+  return (
+    <group>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-22, y, 10]} receiveShadow>
+        <circleGeometry args={[5.2, 28]} />
+        <primitive object={waterMat} attach="material" />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-22, y - 0.04, 10]}>
+        <ringGeometry args={[4.6, 5.5, 28]} />
+        <meshLambertMaterial color="#7a6246" />
+      </mesh>
+    </group>
   );
 }
 
@@ -167,13 +268,17 @@ export function Barn() {
         <boxGeometry args={[8.4, 4.4, 7.2]} />
         <primitive object={woodMat} attach="material" />
       </mesh>
-      <mesh position={[0, 5.1, -1]} rotation={[0, 0, Math.PI / 4.6]} castShadow>
-        <boxGeometry args={[6.4, 0.28, 7.6]} />
+      <mesh position={[-2.35, 5.42, -1]} rotation={[0, 0, Math.PI / 5.1]} castShadow>
+        <boxGeometry args={[5.6, 0.26, 7.8]} />
         <primitive object={roofMat} attach="material" />
       </mesh>
-      <mesh position={[0, 5.1, -1]} rotation={[0, 0, -Math.PI / 4.6]} castShadow>
-        <boxGeometry args={[6.4, 0.28, 7.6]} />
+      <mesh position={[2.35, 5.42, -1]} rotation={[0, 0, -Math.PI / 5.1]} castShadow>
+        <boxGeometry args={[5.6, 0.26, 7.8]} />
         <primitive object={roofMat} attach="material" />
+      </mesh>
+      <mesh position={[0, 6.48, -1]} castShadow>
+        <boxGeometry args={[0.55, 0.28, 8]} />
+        <primitive object={woodDark} attach="material" />
       </mesh>
       <mesh position={[0, 1.5, 2.55]} receiveShadow>
         <boxGeometry args={[2.6, 3.1, 0.2]} />
@@ -187,6 +292,10 @@ export function Barn() {
         <boxGeometry args={[0.28, 3.1, 0.18]} />
         <primitive object={woodDark} attach="material" />
       </mesh>
+      <mesh position={[0, 3.55, 2.66]} castShadow>
+        <boxGeometry args={[1.1, 1.1, 0.12]} />
+        <meshStandardMaterial color="#2a2118" roughness={0.9} flatShading />
+      </mesh>
       <mesh position={[-3.2, 0.45, 3.4]} rotation={[0, 0.4, 0]} castShadow>
         <boxGeometry args={[1.2, 0.8, 0.8]} />
         <primitive object={hayMat} attach="material" />
@@ -195,8 +304,8 @@ export function Barn() {
         <boxGeometry args={[1.1, 0.7, 0.75]} />
         <primitive object={hayMat} attach="material" />
       </mesh>
-      <mesh position={[0, 3.7, 2.7]} castShadow>
-        <boxGeometry args={[1.6, 0.35, 0.12]} />
+      <mesh position={[0, 3.95, 2.72]} castShadow>
+        <boxGeometry args={[1.8, 0.32, 0.12]} />
         <primitive object={woodDark} attach="material" />
       </mesh>
     </group>
@@ -205,8 +314,26 @@ export function Barn() {
 
 export function PaddockFence() {
   const dummy = useMemo(() => new THREE.Object3D(), []);
-  const postGeo = useMemo(() => new THREE.CylinderGeometry(0.08, 0.1, 1.15, 6), []);
-  const railGeo = useMemo(() => new THREE.BoxGeometry(2.2, 0.08, 0.06), []);
+  const postGeo = useMemo(() => new THREE.CylinderGeometry(0.09, 0.11, 1.22, 6), []);
+  const railGeo = useMemo(() => new THREE.BoxGeometry(1, 0.07, 0.055), []);
+
+  const placeRails = (mesh: THREE.InstancedMesh | null, yOff: number) => {
+    if (!mesh) return;
+    FENCE_RAILS.forEach((r, i) => {
+      const y0 = heightAt(r.ax, r.az) + yOff;
+      const y1 = heightAt(r.bx, r.bz) + yOff;
+      const dx = r.bx - r.ax;
+      const dz = r.bz - r.az;
+      const dist = Math.hypot(dx, dz) || 1;
+      dummy.position.set((r.ax + r.bx) / 2, (y0 + y1) / 2, (r.az + r.bz) / 2);
+      _dir.set(dx, 0, dz).normalize();
+      dummy.quaternion.setFromUnitVectors(_axisX, _dir);
+      dummy.scale.set(dist, 1, 1);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+  };
 
   return (
     <group>
@@ -216,8 +343,8 @@ export function PaddockFence() {
         ref={(mesh) => {
           if (!mesh) return;
           FENCE_POSTS.forEach((p, i) => {
-            dummy.position.set(p.x, heightAt(p.x, p.z) + 0.55, p.z);
-            dummy.rotation.set(0, 0, 0);
+            dummy.position.set(p.x, heightAt(p.x, p.z) + 0.58, p.z);
+            dummy.quaternion.identity();
             dummy.scale.set(1, 1, 1);
             dummy.updateMatrix();
             mesh.setMatrixAt(i, dummy.matrix);
@@ -225,21 +352,17 @@ export function PaddockFence() {
           mesh.instanceMatrix.needsUpdate = true;
         }}
       />
-      <instancedMesh
-        args={[railGeo, woodMat, FENCE_POSTS.length]}
-        ref={(mesh) => {
-          if (!mesh) return;
-          FENCE_POSTS.forEach((p, i) => {
-            const next = FENCE_POSTS[(i + 1) % FENCE_POSTS.length];
-            dummy.position.set(p.x, heightAt(p.x, p.z) + 0.7, p.z);
-            dummy.lookAt(next.x, heightAt(p.x, p.z) + 0.7, next.z);
-            dummy.scale.set(1, 1, 1);
-            dummy.updateMatrix();
-            mesh.setMatrixAt(i, dummy.matrix);
-          });
-          mesh.instanceMatrix.needsUpdate = true;
-        }}
-      />
+      <instancedMesh args={[railGeo, woodMat, FENCE_RAILS.length]} ref={(m) => placeRails(m, 0.92)} />
+      <instancedMesh args={[railGeo, woodMat, FENCE_RAILS.length]} ref={(m) => placeRails(m, 0.52)} />
     </group>
+  );
+}
+
+export function GroundBlob({ radius = 0.55 }: { radius?: number }) {
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]} renderOrder={1}>
+      <circleGeometry args={[radius, 14]} />
+      <meshBasicMaterial color="#1a1612" transparent opacity={0.22} depthWrite={false} />
+    </mesh>
   );
 }

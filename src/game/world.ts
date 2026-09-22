@@ -35,7 +35,9 @@ export interface Prop {
 export const TREES: Prop[] = [];
 export const ROCKS: Prop[] = [];
 export const BUSHES: Prop[] = [];
+export const GRASS: Prop[] = [];
 export const FENCE_POSTS: { x: number; z: number }[] = [];
+export const FENCE_RAILS: { ax: number; az: number; bx: number; bz: number }[] = [];
 
 (function scatter() {
   const rand = mulberry32(42);
@@ -76,13 +78,43 @@ export const FENCE_POSTS: { x: number; z: number }[] = [];
       rot: rand() * Math.PI * 2,
     });
   }
+  for (let i = 0; i < 90; i++) {
+    const x = (rand() * 2 - 1) * (WORLD_HALF - 2);
+    const z = (rand() * 2 - 1) * (WORLD_HALF - 2);
+    if (Math.hypot(x, z) < 11.5) continue;
+    if (Math.hypot(x + 22, z - 10) < 6.5) continue;
+    GRASS.push({
+      x,
+      z,
+      r: 0.2,
+      s: 0.55 + rand() * 0.55,
+      rot: rand() * Math.PI * 2,
+    });
+  }
 
   const pad = 11;
-  for (let i = -pad; i <= pad; i += 2.2) {
-    FENCE_POSTS.push({ x: i, z: -pad });
-    FENCE_POSTS.push({ x: i, z: pad });
-    FENCE_POSTS.push({ x: -pad, z: i });
-    FENCE_POSTS.push({ x: pad, z: i });
+  const step = 2.2;
+  const corners: [number, number][] = [
+    [-pad, -pad],
+    [pad, -pad],
+    [pad, pad],
+    [-pad, pad],
+  ];
+  for (let s = 0; s < 4; s++) {
+    const [x0, z0] = corners[s];
+    const [x1, z1] = corners[(s + 1) % 4];
+    const len = Math.hypot(x1 - x0, z1 - z0);
+    const n = Math.max(1, Math.round(len / step));
+    for (let i = 0; i < n; i++) {
+      const t0 = i / n;
+      const t1 = (i + 1) / n;
+      const ax = x0 + (x1 - x0) * t0;
+      const az = z0 + (z1 - z0) * t0;
+      const bx = x0 + (x1 - x0) * t1;
+      const bz = z0 + (z1 - z0) * t1;
+      FENCE_POSTS.push({ x: ax, z: az });
+      FENCE_RAILS.push({ ax, az, bx, bz });
+    }
   }
 })();
 

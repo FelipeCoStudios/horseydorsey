@@ -60,10 +60,17 @@ export const sim = {
   saveAcc: 0,
   uiAcc: 0,
   ready: false,
+  raceHorseId: "luna" as string, raceTime: 0, raceCheckpoint: 1,
+  raceCountdown: 0, raceFinished: false, raceSlow: 0,
 };
 
 const WALK = 7.4;
 const TURN = 2.45;
+const RACE_TURN = 2.1;
+const RACE_ROUTE = [
+  { x: 0, z: 16 }, { x: 16, z: 16 }, { x: 16, z: -16 },
+  { x: -16, z: -16 }, { x: -16, z: 16 }, { x: 0, z: 16 },
+];
 const FIXED = 1 / 60;
 let accumulator = 0;
 
@@ -102,6 +109,9 @@ export function resetSim(fromSave = true) {
   sim.particles = [];
   sim.time = 0;
   sim.careCooldown = 0;
+  sim.raceTime = 0; sim.raceCheckpoint = 1; sim.raceCountdown = 0;
+  sim.raceFinished = false; sim.raceSlow = 0;
+  sim.raceHorseId = sim.horses.find((h) => h.registered)?.id ?? "luna";
   sim.ready = true;
   pushUI();
 }
@@ -223,6 +233,7 @@ function pushUI() {
     total: TOTAL_HORSES,
     prompt: promptFor(near, careId),
     careCooldown: sim.careCooldown,
+    raceTime: sim.raceTime, raceBest: ui.raceBest, raceCheckpoint: sim.raceCheckpoint, raceCountdown: sim.raceCountdown,
     horses: sim.horses.map((h) => ({
       def: HORSE_BY_ID[h.id],
       happiness: h.happiness,
@@ -382,6 +393,49 @@ function registerFollowers() {
   }
 }
 
+
+function raceHorse(): HorseSim { return sim.horses.find((h) => h.id === sim.raceHorseId) ?? sim.horses[0]!; }
+
+export function startRace() {
+  if (currentPhase() !== "playing" || !pepolaNear()) return;
+  const horse = raceHorse(); const start = RACE_ROUTE[0];
+  sim.player = { x: start.x, z: start.z, yaw: -Math.PI / 2, speed: 0, walkPhase: 0 };
+  Object.assign(horse, { x: start.x, z: start.z, yaw: sim.player.yaw, speed: 0, walkPhase: 0 });
+  sim.raceTime = 0; sim.raceCheckpoint = 1; sim.raceCountdown = 3; sim.raceFinished = false;
+  setPhase("race"); showToast(`Pepola: ¡A correr con ${HORSE_BY_ID[horse.id].name}!`);
+}
+
+export function exitRace() {
+  const horse = raceHorse(); sim.player = { x: 2.4, z: 8.8, yaw: Math.PI, speed: 0, walkPhase: 0 };
+  Object.assign(horse, { x: sim.player.x, z: sim.player.z, speed: 0, walkPhase: 0 });
+  sim.raceFinished = false; setPhase("playing");
+}
+
+function stepRace(dt: number) {
+  const horse = raceHorse(); const def = HORSE_BY_ID[horse.id];
+  if (sim.raceCountdown > 0) { sim.raceCountdown = Math.max(0, sim.raceCountdown - dt); horse.speed = 0; return; }
+  if (sim.raceFinished) return;
+  sim.player.yaw += getSteer() * RACE_TURN * dt;
+  const throttle = Math.max(0, getThrottle()); const maxSpeed = 8.2 + def.speed * 0.9;
+  horse.speed += (throttle * maxSpeed - horse.speed) * Math.min(1, (throttle ? 5.5 : 8) * dt);
+  if (horse.speed < 0.03) horse.speed = 0;
+  const fx = -Math.sin(sim.player.yaw), fz = -Math.cos(sim.player.yaw);
+  const moved = collideMove(sim.player.x, sim.player.z, sim.player.x + fx * horse.speed * dt, sim.player.z + fz * horse.speed * dt, 0.62);
+  sim.player.x = moved.x; sim.player.z = moved.z; sim.player.speed = horse.speed; sim.player.walkPhase += horse.speed * dt * 1.8;
+  horse.x = sim.player.x; horse.z = sim.player.z; horse.yaw = sim.player.yaw; horse.walkPhase = sim.player.walkPhase;
+  sim.raceTime += dt;
+  const target = RACE_ROUTE[sim.raceCheckpoint];
+  if (target && Math.hypot(sim.player.x-target.x, sim.player.z-target.z) < 4.2) {
+    sim.raceCheckpoint++;
+    if (sim.raceCheckpoint >= RACE_ROUTE.length) {
+      sim.raceFinished = true; const best = useGame.getState().raceBest;
+      useGame.setState({ raceTime: sim.raceTime, raceBest: best == null ? sim.raceTime : Math.min(best, sim.raceTime), raceCheckpoint: sim.raceCheckpoint });
+      showToast(`¡Meta! Tiempo: ${sim.raceTime.toFixed(2)} s`);
+    }
+  }
+  useGame.setState({ raceTime: sim.raceTime, raceCheckpoint: sim.raceCheckpoint, raceCountdown: sim.raceCountdown });
+}
+
 function interact() {
   const phase = currentPhase();
   if (phase !== "playing") return;
@@ -410,12 +464,7 @@ function interact() {
     return;
   }
 
-  if (pepolaNear()) {
-    const left = TOTAL_HORSES - sim.horses.filter((h) => h.registered).length;
-    if (left === 0) showToast("Pepola: el establo está completo.");
-    else showToast(`Pepola: faltan ${left} caballo${left === 1 ? "" : "s"}. Traémelos.`);
-    setPhase("journal");
-  }
+  if (pepolaNear()) startRace();
 }
 
 export function care(kind: "brush" | "pet" | "feed") {
@@ -470,6 +519,7 @@ export function tick(delta: number) {
   if (consumeEscape()) {
     if (phase === "playing") setPhase("paused");
     else if (phase === "paused" || phase === "journal") setPhase("playing");
+    else if (phase === "race") exitRace();
   }
   if (consumeJournal()) {
     if (phase === "playing") setPhase("journal");
@@ -483,10 +533,10 @@ export function tick(delta: number) {
     if (phase === "playing") {
       stepPlayer(dt);
       if (consumeInteract()) interact();
-    } else {
-      consumeInteract();
-    }
-    stepHorses(dt);
+    } else if (phase === "race") {
+      stepRace(dt);
+    } else { consumeInteract(); }
+    if (phase !== "race") stepHorses(dt);
     stepParticles(dt);
     if (sim.careCooldown > 0) sim.careCooldown = Math.max(0, sim.careCooldown - dt);
     accumulator -= FIXED;

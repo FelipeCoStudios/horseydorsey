@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { HORSES, TOTAL_HORSES, type HorseDef } from "./data";
 
-export type Phase = "title" | "playing" | "paused" | "journal" | "win";
+export type Phase = "title" | "playing" | "paused" | "journal" | "race" | "win";
 
 export interface HorseCard {
   def: HorseDef;
@@ -25,6 +25,10 @@ export interface GameUI {
   prompt: string | null;
   horses: HorseCard[];
   careCooldown: number;
+  raceTime: number;
+  raceBest: number | null;
+  raceCheckpoint: number;
+  raceCountdown: number;
 }
 
 const emptyCards = (): HorseCard[] =>
@@ -50,6 +54,10 @@ export const useGame = create<GameUI>(() => ({
   prompt: null,
   horses: emptyCards(),
   careCooldown: 0,
+  raceTime: 0,
+  raceBest: null,
+  raceCheckpoint: 0,
+  raceCountdown: 0,
 }));
 
 export function setPhase(phase: Phase) {

@@ -43,15 +43,17 @@ function onBlur() {
   keys.clear();
 }
 
+function onVisibility() {
+  if (document.hidden) keys.clear();
+}
+
 export function attachInput() {
   if (attached || typeof window === "undefined") return;
   attached = true;
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);
   window.addEventListener("blur", onBlur);
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden) keys.clear();
-  });
+  document.addEventListener("visibilitychange", onVisibility);
 }
 
 export function detachInput() {
@@ -60,6 +62,7 @@ export function detachInput() {
   window.removeEventListener("keydown", onKeyDown);
   window.removeEventListener("keyup", onKeyUp);
   window.removeEventListener("blur", onBlur);
+  document.removeEventListener("visibilitychange", onVisibility);
 }
 
 function down(code: string): boolean {
@@ -128,7 +131,7 @@ export function consumeEscape(): boolean {
 }
 
 export function setInjectedKeys(codes: string[]) {
-  injected = codes;
+  injected = codes.length ? codes : null;
 }
 
 function radialDeadzone(x: number, y: number, dz = 0.18) {
